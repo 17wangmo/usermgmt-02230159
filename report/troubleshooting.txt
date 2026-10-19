@@ -1,0 +1,11 @@
+TEMPLATE - REPLACE THIS WITH A PROBLEM YOU REALLY MET. Markers must stay on their own lines.
+@@Problem
+After applying the Deployment, the api Pods showed ErrImageNeverPull / ImagePullBackOff and READY stayed 0/1.
+@@Diagnosis
+kubectl get pods -n usermgmt-<sid>        -> STATUS ErrImageNeverPull
+kubectl describe pod <api-pod> -n usermgmt-<sid>   -> Events: image "usermgmt-api:1.0" not present with pull policy of Never
+minikube image ls | grep usermgmt-api     -> no output: the image was built in my host Docker, not inside minikube
+@@Cause and fix
+minikube runs its own container runtime, so an image built on the host is invisible to it until loaded.
+Fix: minikube image load usermgmt-api:1.0, then kubectl rollout restart deployment/api -n usermgmt-<sid>.
+Afterwards kubectl get pods showed 2/2 Running and kubectl logs showed gunicorn listening on port 8080.
