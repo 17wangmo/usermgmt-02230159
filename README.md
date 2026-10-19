@@ -2,7 +2,7 @@
 
 Student ID **02230159** · namespace `usermgmt-02230159` · host `http://usermgmt-02230159.local`
 
-Flask + PostgreSQL user service on minikube: PostgreSQL as a StatefulSet with a headless Service
+Flask + PostgreSQL user service on minikube, with a small web dashboard at `/`: PostgreSQL as a StatefulSet with a headless Service
 and a 1 Gi PVC, the API as a Deployment (2 replicas) behind a ClusterIP Service, an Ingress
 (Ingress NGINX, class `nginx`), an HPA on the API (CPU 50 %, 2–6 replicas) and a VPA on the
 database (`updateMode: "Off"`, recommend only).
@@ -40,6 +40,11 @@ kubectl get storageclass            # standard (default), provisioner k8s.io/min
 > the first node did not come back (kubelet/apiserver `Stopped`); the Docker runtime avoids this.
 > If an add-on shows `enabled` but has no Pod, run `minikube addons disable <name>` then
 > `minikube addons enable <name>`.
+>
+> **Slow internet:** if a Pod stays in `ContainerCreating` or shows `ErrImagePull` /
+> `context canceled`, download the image inside the node (no time limit) and delete the Pod:
+> `minikube ssh -- docker pull <image>` then `kubectl delete pod <pod> -n <namespace>`.
+> The image name is in `kubectl describe pod <pod> -n <namespace>` under Events.
 
 ## 2. Vertical Pod Autoscaler (official kubernetes/autoscaler repository)
 
@@ -63,9 +68,11 @@ cd C:\Users\wangm\usermgmt
 
 ## 3. Build the API image and load it into minikube
 
+The Deployment (`k8s/05-api-deployment.yaml`) uses `usermgmt-api:1.1`, so build that tag.
+
 ```powershell
-docker build -t usermgmt-api:1.0 .\app
-minikube image load usermgmt-api:1.0
+docker build -t usermgmt-api:1.1 .\app
+minikube image load usermgmt-api:1.1
 minikube image ls | Select-String usermgmt-api
 ```
 
@@ -103,6 +110,9 @@ Invoke-RestMethod -Method Put -Uri http://localhost:8080/users/1 -ContentType "a
 (Invoke-WebRequest -Method Delete -Uri http://localhost:8080/users/1 -UseBasicParsing).StatusCode
 ```
 
+Web dashboard (same port-forward): open http://localhost:8080/ in a browser to add, edit and
+delete users.
+
 ## 7. Ingress
 
 1. Notepad **as Administrator** → `C:\Windows\System32\drivers\etc\hosts` → add `127.0.0.1 usermgmt-02230159.local`.
@@ -113,6 +123,8 @@ kubectl describe ingress api-ingress -n $NS
 curl.exe -i http://usermgmt-02230159.local/users                       # 200 + JSON
 curl.exe -i -H "Host: other-host.local" http://127.0.0.1/users         # 404 from nginx
 ```
+
+The dashboard is also at http://usermgmt-02230159.local/ while `minikube tunnel` is running.
 
 ## 8. Autoscaling (HPA load test + VPA recommendation)
 
@@ -137,5 +149,6 @@ kubectl describe vpa postgres-vpa -n $NS # Lower Bound / Target / Upper Bound
 
 ```powershell
 kubectl delete namespace $NS      # also removes the PVC
+# stop minikube tunnel (Ctrl + C in its Administrator window) before the next line
 minikube delete
 ```
